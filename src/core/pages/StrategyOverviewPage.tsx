@@ -92,8 +92,10 @@ export default function StrategyOverviewPage() {
 
     // Derived state
     const availableEvents = useMemo(() => {
-        return Array.from(new Set(scoutingData.map((d) => d.eventKey))).sort();
-    }, [scoutingData]);
+        const eventsFromScouting = scoutingData.map((d) => d.eventKey);
+        const eventsFromStats = teamStats.map((s) => s.eventKey);
+        return Array.from(new Set([...eventsFromScouting, ...eventsFromStats])).sort();
+    }, [scoutingData, teamStats]);
 
     // Calculate statistics using centralized hook
     const { teamStats, filteredTeamStats, isLoading, error } = useTeamStatistics(

@@ -168,6 +168,13 @@ export function useWebRTCSignaling({
       return;
     }
 
+    // Prevent overlapping polls
+    if (pollInFlightRef.current) {
+      return;
+    }
+
+    pollInFlightRef.current = true;
+
     // console.log(`🔄 Polling room ${roomId} as ${peerId.substring(0, 8)}...`);
 
     try {
@@ -203,6 +210,8 @@ export function useWebRTCSignaling({
         console.error('Polling error:', err);
       }
       // Don't set error state for polling failures, just log them
+    } finally {
+      pollInFlightRef.current = false;
     }
   }, [roomId, peerId, enabled, connected, signalingUrl, onMessage]);
 
