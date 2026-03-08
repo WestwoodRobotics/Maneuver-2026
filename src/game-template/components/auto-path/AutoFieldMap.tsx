@@ -22,7 +22,6 @@ import { cn } from "@/core/lib/utils";
 import { loadPitScoutingByTeamAndEvent } from "@/core/db/database";
 import { submitMatchData } from "@/core/lib/submitMatch";
 import { useGame } from "@/core/contexts/GameContext";
-import { toast } from "sonner";
 import fieldImage from "@/game-template/assets/2026-field.png";
 import {
     FIELD_ELEMENTS,
@@ -35,22 +34,16 @@ import {
     FieldHeader,
     FieldButton,
     PendingWaypointPopup,
-    ShotTypePopup,
     usePathDrawing,
     FieldCanvas,
     type FieldCanvasRef,
+    ShootingTimer,
+    type ShootingTimerRef,
 } from "@/game-template/components/field-map";
 
 // Context hooks
 import { AutoPathProvider, useAutoScoring } from "@/game-template/contexts";
 import { actions as schemaActions } from "@/game-template/game-schema";
-import { formatDurationSecondsLabel } from "@/game-template/duration";
-import { AUTO_PHASE_DURATION_MS } from "@/game-template/constants";
-import {
-    GAME_SCOUT_OPTION_KEYS,
-    getEffectiveScoutOptions,
-} from "@/game-template/scout-options";
-import { CORE_SCOUT_OPTION_KEYS } from "@/core/components/GameStartComponents/ScoutOptionsSheet";
 
 // Local sub-components
 import { AutoActionLog } from "./components/AutoActionLog";
@@ -67,39 +60,11 @@ import { PostClimbProceed } from "@/game-template/components";
 // Re-export types for backward compatibility with existing consumers
 export type { PathActionType, ZoneType, PathWaypoint };
 
-const START_KEY_LABELS: Record<'trench1' | 'bump1' | 'hub' | 'bump2' | 'trench2', string> = {
-    trench1: 'Left Trench',
-    bump1: 'Left Bump',
-    hub: 'Hub',
-    bump2: 'Right Bump',
-    trench2: 'Right Trench',
-};
-
-const MOVING_SHOT_MIN_PATH_LENGTH = 0.05;
-const AUTO_SWITCH_ONCE_STORAGE_PREFIX = 'autoSwitchToTeleopDone';
-const AUTO_CUE_TARGET_MS = 20000;
-
-const getPathLength = (points: { x: number; y: number }[]): number => {
-    if (points.length < 2) return 0;
-
-    let length = 0;
-    for (let index = 1; index < points.length; index += 1) {
-        const previous = points[index - 1]!;
-        const current = points[index]!;
-        const deltaX = current.x - previous.x;
-        const deltaY = current.y - previous.y;
-        length += Math.hypot(deltaX, deltaY);
-    }
-
-    return length;
-};
-
 
 
 export interface AutoFieldMapProps {
     onAddAction: (action: any) => void;
     actions: PathWaypoint[];
-    scoutOptions?: Record<string, boolean>;
     onUndo?: () => void;
     canUndo?: boolean;
     startPosition?: number;
@@ -107,13 +72,7 @@ export interface AutoFieldMapProps {
     matchType?: 'qm' | 'sf' | 'f';
     teamNumber?: string | number;
     onBack?: () => void;
-    onProceed?: (finalActions?: PathWaypoint[]) => void;
-    enableNoShow?: boolean;
-    recordingMode?: boolean;
-    preferredStartKey?: 'trench1' | 'bump1' | 'hub' | 'bump2' | 'trench2';
-    headerLabel?: string;
-    headerInputSlot?: React.ReactNode;
-    recordingActionSlot?: React.ReactNode;
+    onProceed?: () => void;
 }
 
 // =============================================================================
@@ -136,16 +95,8 @@ export function AutoFieldMap(props: AutoFieldMapProps) {
             teamNumber={props.teamNumber}
             onBack={props.onBack}
             onProceed={props.onProceed}
-            enableNoShow={props.enableNoShow}
         >
-            <AutoFieldMapContent
-                scoutOptions={props.scoutOptions}
-                recordingMode={props.recordingMode}
-                preferredStartKey={props.preferredStartKey}
-                headerLabel={props.headerLabel}
-                headerInputSlot={props.headerInputSlot}
-                recordingActionSlot={props.recordingActionSlot}
-            />
+            <AutoFieldMapContent />
         </AutoPathProvider>
     );
 }
@@ -154,21 +105,7 @@ export function AutoFieldMap(props: AutoFieldMapProps) {
 // CONTENT COMPONENT - Uses Context
 // =============================================================================
 
-function AutoFieldMapContent({
-    scoutOptions,
-    recordingMode = false,
-    preferredStartKey,
-    headerLabel,
-    headerInputSlot,
-    recordingActionSlot,
-}: {
-    scoutOptions?: Record<string, boolean>;
-    recordingMode?: boolean;
-    preferredStartKey?: 'trench1' | 'bump1' | 'hub' | 'bump2' | 'trench2';
-    headerLabel?: string;
-    headerInputSlot?: React.ReactNode;
-    recordingActionSlot?: React.ReactNode;
-}) {
+function AutoFieldMapContent() {
     // Get all state from context
     const {
         // From ScoringContext
@@ -193,7 +130,6 @@ function AutoFieldMapContent({
         teamNumber,
         onBack,
         onProceed,
-        enableNoShow,
         generateId,
         // From AutoPathContext
         selectedStartKey,
@@ -204,8 +140,6 @@ function AutoFieldMapContent({
         setShowPostClimbProceed,
         climbResult,
         setClimbResult,
-        climbLocation,
-        setClimbLocation,
         canvasDimensions,
         containerRef,
         isSelectingScore,
@@ -216,56 +150,17 @@ function AutoFieldMapContent({
         setIsSelectingCollect,
     } = useAutoScoring();
 
-    const autoTraversalHotkeyMap: Record<string, string> = {
-        trench1: '1',
-        bump1: '2',
-        bump2: '3',
-        trench2: '4',
-    };
-
-    const autoStartHotkeyMap: Record<string, string> = {
-        trench1: '1',
-        bump1: '2',
-        hub: 'S',
-        bump2: '3',
-        trench2: '4',
-    };
-
-    const autoElementHotkeys: Partial<Record<string, string>> = {
-        hub: 'S',
-        pass: 'A',
-        pass_alliance: 'A',
-        tower: 'F',
-        depot: 'C',
-        outpost: 'G',
-        opponent_foul: 'V',
-        collect_alliance: 'D',
-        collect_neutral: 'D',
-        ...autoTraversalHotkeyMap,
-    };
     const navigate = useNavigate();
     const location = useLocation();
     const { transformation } = useGame();
-    const autoSwitchOnceStorageKey = useMemo(() => {
-        const eventKey = location.state?.inputs?.eventKey ?? 'unknown-event';
-        const matchType = location.state?.inputs?.matchType ?? 'qm';
-        const matchNumber = location.state?.inputs?.matchNumber ?? 'unknown-match';
-        const teamNumber = location.state?.inputs?.selectTeam ?? 'unknown-team';
-        return `${AUTO_SWITCH_ONCE_STORAGE_PREFIX}:${eventKey}:${matchType}:${matchNumber}:${teamNumber}`;
-    }, [
-        location.state?.inputs?.eventKey,
-        location.state?.inputs?.matchType,
-        location.state?.inputs?.matchNumber,
-        location.state?.inputs?.selectTeam,
-    ]);
 
     const fieldCanvasRef = useRef<FieldCanvasRef>(null);
-    const autoScreenEnteredAtRef = useRef(Date.now());
-    const hasAutoAdvancedRef = useRef(false);
-    const startSeedInFlightRef = useRef(false);
     const canvasRef = useMemo(() => ({
         get current() { return fieldCanvasRef.current?.canvas ?? null; }
     }), []) as React.RefObject<HTMLCanvasElement>;
+
+    // Ref for shooting timer to control it programmatically
+    const shootingTimerRef = useRef<ShootingTimerRef>(null);
 
     const stuckTimeoutRef = useRef<any>(null);
 
@@ -274,11 +169,7 @@ function AutoFieldMapContent({
     const [currentZone, setCurrentZone] = useState<ZoneType>('allianceZone');
     const [robotCapacity, setRobotCapacity] = useState<number | undefined>();
     const [actionLogOpen, setActionLogOpen] = useState(false);
-    const [pendingShotTypeWaypoint, setPendingShotTypeWaypoint] = useState<PathWaypoint | null>(null);
-    const [focusClimbTimeInputOnOpen, setFocusClimbTimeInputOnOpen] = useState(false);
-    const [autoElapsedMs, setAutoElapsedMs] = useState(0);
-    const [elapsedSinceStartConfirmationMs, setElapsedSinceStartConfirmationMs] = useState(0);
-
+    
     // Broken down state - persisted with localStorage
     const [brokenDownStart, setBrokenDownStart] = useState<number | null>(() => {
         const saved = localStorage.getItem('autoBrokenDownStart');
@@ -290,46 +181,26 @@ function AutoFieldMapContent({
     });
     const isBrokenDown = brokenDownStart !== null;
 
+    // Shooting timer state - persisted with localStorage
+    const [totalShootingTime, setTotalShootingTime] = useState<number>(() => {
+        const saved = localStorage.getItem('autoShootingTime');
+        return saved ? parseInt(saved, 10) : 0;
+    });
+
+    // Save shooting time to localStorage whenever it changes
+    useEffect(() => {
+        localStorage.setItem('autoShootingTime', String(totalShootingTime));
+    }, [totalShootingTime]);
+
     const isMobile = useIsMobile();
-    const effectiveScoutOptions = getEffectiveScoutOptions(scoutOptions);
-    const startAutoCueFromStartConfirmation =
-        effectiveScoutOptions[CORE_SCOUT_OPTION_KEYS.startAutoCueFromStartConfirmation] !== false;
-    const startAutoCueFromAutoScreenEntry =
-        effectiveScoutOptions[CORE_SCOUT_OPTION_KEYS.startAutoCueFromAutoScreenEntry] === true;
-    const autoAdvanceToTeleopAfter20s =
-        effectiveScoutOptions[CORE_SCOUT_OPTION_KEYS.autoAdvanceToTeleopAfter20s] === true;
-    const firstConfirmedStartTimestamp = useMemo(() => {
-        const firstStartAction = actions.find((action) => action.type === 'start');
-        return typeof firstStartAction?.timestamp === 'number'
-            ? firstStartAction.timestamp
-            : null;
-    }, [actions]);
-    const autoCueTimerStartTimestamp = startAutoCueFromAutoScreenEntry
-        ? autoScreenEnteredAtRef.current
-        : ((startAutoCueFromStartConfirmation || autoAdvanceToTeleopAfter20s) ? firstConfirmedStartTimestamp : null);
-    const autoCueCountdownSeconds = autoCueTimerStartTimestamp === null
-        ? null
-        : Math.max(0, Math.ceil((AUTO_CUE_TARGET_MS - autoElapsedMs) / 1000));
-    const shouldPulseAutoBorder = autoElapsedMs >= AUTO_CUE_TARGET_MS;
-    const shouldAutoAdvanceToTeleop = autoAdvanceToTeleopAfter20s && elapsedSinceStartConfirmationMs >= AUTO_CUE_TARGET_MS;
-    const disableHubFuelScoringPopup =
-        effectiveScoutOptions[GAME_SCOUT_OPTION_KEYS.disableHubFuelScoringPopup] === true;
-    const disablePassingPopup =
-        effectiveScoutOptions[GAME_SCOUT_OPTION_KEYS.disablePassingPopup] === true;
-    const disablePathDrawingTapOnly =
-        effectiveScoutOptions[GAME_SCOUT_OPTION_KEYS.disableAutoPathDrawingTapOnly] === true;
 
     // Load pit scouting data for fuel capacity
     useEffect(() => {
         const loadPitData = async () => {
             if (!teamNumber) return;
-
-            const parsedTeamNumber = Number(teamNumber);
-            if (!Number.isFinite(parsedTeamNumber) || parsedTeamNumber <= 0) return;
-
             try {
                 const eventKey = localStorage.getItem('eventKey') || '';
-                const pitData = await loadPitScoutingByTeamAndEvent(parsedTeamNumber, eventKey);
+                const pitData = await loadPitScoutingByTeamAndEvent(Number(teamNumber), eventKey);
                 if (pitData && pitData.gameData) {
                     setRobotCapacity(pitData.gameData.fuelCapacity as number);
                 }
@@ -359,53 +230,10 @@ function AutoFieldMapContent({
 
     // Auto-fullscreen on mobile on mount
     useEffect(() => {
-        if (isMobile && !recordingMode) {
+        if (isMobile) {
             setIsFullscreen(true);
-            return;
         }
-        if (recordingMode) {
-            setIsFullscreen(false);
-        }
-    }, [isMobile, recordingMode]);
-
-    useEffect(() => {
-        if (autoCueTimerStartTimestamp === null) {
-            setAutoElapsedMs(0);
-            return;
-        }
-
-        const updateElapsed = () => {
-            const elapsed = Date.now() - autoCueTimerStartTimestamp;
-            setAutoElapsedMs(Math.min(Math.max(elapsed, 0), AUTO_PHASE_DURATION_MS));
-        };
-
-        updateElapsed();
-        const intervalId = window.setInterval(updateElapsed, 250);
-
-        return () => {
-            window.clearInterval(intervalId);
-        };
-    }, [autoCueTimerStartTimestamp]);
-
-    useEffect(() => {
-        if (firstConfirmedStartTimestamp === null) {
-            hasAutoAdvancedRef.current = false;
-            setElapsedSinceStartConfirmationMs(0);
-            return;
-        }
-
-        const updateElapsed = () => {
-            const elapsed = Date.now() - firstConfirmedStartTimestamp;
-            setElapsedSinceStartConfirmationMs(Math.min(Math.max(elapsed, 0), AUTO_PHASE_DURATION_MS));
-        };
-
-        updateElapsed();
-        const intervalId = window.setInterval(updateElapsed, 250);
-
-        return () => {
-            window.clearInterval(intervalId);
-        };
-    }, [firstConfirmedStartTimestamp]);
+    }, [isMobile]);
 
     // Recalculate current zone whenever actions change (handles undo properly)
     useEffect(() => {
@@ -419,43 +247,44 @@ function AutoFieldMapContent({
         setCurrentZone(zone);
     }, [actions]);
 
+
     // Calculate total score from actions (not just fuel count)
     const totalScore = actions.reduce((sum, action) => {
         // Find matching action in schema
         const schemaAction = Object.entries(schemaActions).find(([key, def]) => {
             if (def.pathType !== action.type) return false;
-
+            
             // For climb, match autoClimb
             if (action.type === 'climb' && action.action === 'climb-success') {
                 return key === 'autoClimb';
             }
-
+            
             // For collect, match by pathAction
             if (action.type === 'collect' && 'pathAction' in def && def.pathAction) {
                 return def.pathAction === action.action;
             }
-
+            
             // For score, count fuel points
             if (action.type === 'score') {
                 return key === 'fuelScored';
             }
-
+            
             return true;
         });
-
+        
         if (schemaAction) {
             const [, def] = schemaAction;
             const points = def.points.auto || 0;
-
+            
             // For fuel scoring, multiply by fuel count
             if (action.type === 'score' && action.fuelDelta) {
                 return sum + (points * Math.abs(action.fuelDelta));
             }
-
+            
             // For other actions, just add the points
             return sum + points;
         }
-
+        
         return sum;
     }, 0);
 
@@ -485,30 +314,6 @@ function AutoFieldMapContent({
         onAddAction(waypoint);
     }, [onAddAction, generateId]);
 
-    // Seed start position in recording mode based on requested pit start location
-    useEffect(() => {
-        if (!recordingMode || !preferredStartKey) return;
-
-        if (actions.length > 0) {
-            startSeedInFlightRef.current = false;
-            return;
-        }
-
-        if (startSeedInFlightRef.current) {
-            return;
-        }
-
-        if (actions.length === 0) {
-            const startElement = FIELD_ELEMENTS[preferredStartKey];
-            if (!startElement) return;
-
-            startSeedInFlightRef.current = true;
-            addWaypoint('start', preferredStartKey, { x: startElement.x, y: startElement.y });
-            setSelectedStartKey(null);
-            toast.info(`Starting position set to ${START_KEY_LABELS[preferredStartKey]}. Choose the next auto action.`);
-        }
-    }, [recordingMode, preferredStartKey, actions.length, addWaypoint, setSelectedStartKey]);
-
     const handleBrokenDownToggle = () => {
         if (brokenDownStart) {
             // Robot is back up - accumulate the time
@@ -526,37 +331,18 @@ function AutoFieldMapContent({
         }
     };
 
-    const handleElementClick = useCallback((elementKey: string) => {
+    const handleElementClick = (elementKey: string) => {
         const element = FIELD_ELEMENTS[elementKey as keyof typeof FIELD_ELEMENTS];
         if (!element) return;
-        let clearedPersistentStuck = false;
-
-        // If user taps a different target while "Stuck?" is showing, treat it as dismissal
-        if (!recordingMode && stuckElementKey && stuckElementKey !== elementKey) {
-            if (stuckTimeoutRef.current) {
-                clearTimeout(stuckTimeoutRef.current);
-                stuckTimeoutRef.current = null;
-            }
-            setStuckElementKey(null);
-        }
 
         // 1. Handle Persistent Stuck Resolution
-        if (!recordingMode && stuckStarts[elementKey]) {
+        if (stuckStarts[elementKey]) {
             const startTime = stuckStarts[elementKey]!;
-            const obstacleType = elementKey.includes('trench') ? 'trench' : 'bump';
-            const stuckDuration = Math.min(Date.now() - startTime, AUTO_PHASE_DURATION_MS);
+            const type = elementKey.includes('trench') ? 'trench' : 'bump';
 
-            // Create unstuck waypoint with duration for analytics (matches teleop pattern)
-            onAddAction({
-                id: generateId(),
-                type: 'unstuck',
-                action: `unstuck-${obstacleType}`,
-                position: { x: element.x, y: element.y },
-                timestamp: Date.now(),
-                duration: stuckDuration,
-                obstacleType: obstacleType as 'trench' | 'bump',
-                amountLabel: formatDurationSecondsLabel(stuckDuration),
-            });
+            // Include duration in the waypoint for analytics
+            const stuckDuration = Date.now() - startTime;
+            addWaypoint('traversal', `${type}-stuck`, { x: element.x, y: element.y }, undefined, `${Math.round(stuckDuration / 1000)}s`);
 
             setStuckStarts(prev => {
                 const next = { ...prev };
@@ -566,34 +352,8 @@ function AutoFieldMapContent({
             return;
         }
 
-        // 1b. If stuck on another obstacle, auto-resolve it and continue with the newly tapped action
-        if (!recordingMode && isAnyStuck) {
-            const now = Date.now();
-            Object.entries(stuckStarts).forEach(([stuckKey, startTime]) => {
-                if (!startTime || typeof startTime !== 'number') return;
-
-                const obstacleType = stuckKey.includes('trench') ? 'trench' : 'bump';
-                const stuckElement = FIELD_ELEMENTS[stuckKey as keyof typeof FIELD_ELEMENTS];
-                const stuckDuration = Math.min(now - startTime, AUTO_PHASE_DURATION_MS);
-
-                onAddAction({
-                    id: generateId(),
-                    type: 'unstuck',
-                    action: `unstuck-${obstacleType}`,
-                    position: stuckElement ? { x: stuckElement.x, y: stuckElement.y } : { x: 0, y: 0 },
-                    timestamp: now,
-                    duration: stuckDuration,
-                    obstacleType: obstacleType as 'trench' | 'bump',
-                    amountLabel: formatDurationSecondsLabel(stuckDuration),
-                });
-            });
-
-            setStuckStarts({});
-            clearedPersistentStuck = true;
-        }
-
         // 2. Handle Potential Stuck Promotion (Second tap within 5s)
-        if (!recordingMode && stuckElementKey === elementKey) {
+        if (stuckElementKey === elementKey) {
             if (stuckTimeoutRef.current) {
                 clearTimeout(stuckTimeoutRef.current);
                 stuckTimeoutRef.current = null;
@@ -604,7 +364,7 @@ function AutoFieldMapContent({
         }
 
         // Block clicks while any popup is active or robot is stuck elsewhere or broken down
-        if (pendingWaypoint || pendingShotTypeWaypoint || isSelectingScore || isSelectingPass || isSelectingCollect || selectedStartKey || (!clearedPersistentStuck && isAnyStuck) || isBrokenDown) {
+        if (pendingWaypoint || isSelectingScore || isSelectingPass || isSelectingCollect || selectedStartKey || isAnyStuck || isBrokenDown) {
             return;
         }
 
@@ -621,6 +381,8 @@ function AutoFieldMapContent({
         switch (elementKey) {
             case 'hub':
                 setIsSelectingScore(true);
+                // Start shooting timer when hub button is clicked
+                shootingTimerRef.current?.start();
                 break;
             case 'depot':
             case 'outpost':
@@ -634,27 +396,24 @@ function AutoFieldMapContent({
                     position: position,
                     timestamp: Date.now(),
                 };
-                setFocusClimbTimeInputOnOpen(false);
                 setPendingWaypoint(waypoint);
                 setClimbResult('success');
-                setClimbLocation(undefined);
                 break;
             }
             case 'trench1':
             case 'trench2':
             case 'bump1':
             case 'bump2': {
-                addWaypoint('traversal', elementKey, position);
+                const type = elementKey.includes('trench') ? 'trench' : 'bump';
+                addWaypoint('traversal', type, position);
 
                 // Enter potential stuck ("Stuck?") phase for 5s
-                if (!recordingMode) {
-                    if (stuckTimeoutRef.current) clearTimeout(stuckTimeoutRef.current);
-                    setStuckElementKey(elementKey);
-                    stuckTimeoutRef.current = setTimeout(() => {
-                        setStuckElementKey(null);
-                        stuckTimeoutRef.current = null;
-                    }, 5000);
-                }
+                if (stuckTimeoutRef.current) clearTimeout(stuckTimeoutRef.current);
+                setStuckElementKey(elementKey);
+                stuckTimeoutRef.current = setTimeout(() => {
+                    setStuckElementKey(null);
+                    stuckTimeoutRef.current = null;
+                }, 5000);
                 break;
             }
             case 'pass':
@@ -669,107 +428,50 @@ function AutoFieldMapContent({
                 addWaypoint('foul', 'mid-line-penalty', position);
                 break;
         }
-    }, [
-        actions.length,
-        addWaypoint,
-        generateId,
-        isAnyStuck,
-        isBrokenDown,
-        isSelectingCollect,
-        isSelectingPass,
-        isSelectingScore,
-        onAddAction,
-        pendingShotTypeWaypoint,
-        pendingWaypoint,
-        recordingMode,
-        selectedStartKey,
-        setClimbLocation,
-        setClimbResult,
-        setFocusClimbTimeInputOnOpen,
-        setIsSelectingCollect,
-        setIsSelectingPass,
-        setIsSelectingScore,
-        setPendingWaypoint,
-        setSelectedStartKey,
-        setStuckElementKey,
-        setStuckStarts,
-        stuckElementKey,
-        stuckStarts,
-    ]);
+    };
 
     // Consolidated interaction handler
     const handleInteractionEnd = (points: { x: number; y: number }[]) => {
         if (points.length === 0) return;
 
         const isDrag = points.length > 5; // Simple threshold to distinguish tap vs drag
-        const shouldUsePath = isDrag && !disablePathDrawingTapOnly;
         const pos = points[0]!;
 
         if (isSelectingScore) {
-            const inferredShotType = shouldUsePath
-                ? (getPathLength(points) >= MOVING_SHOT_MIN_PATH_LENGTH ? 'onTheMove' : 'stationary')
-                : 'stationary';
-
             const waypoint: PathWaypoint = {
                 id: generateId(),
                 type: 'score',
-                action: shouldUsePath ? 'shoot-path' : 'hub',
+                action: isDrag ? 'shoot-path' : 'hub',
                 position: pos,
-                fuelDelta: disableHubFuelScoringPopup ? 0 : -8, // Default, finalized in amount selection unless popup disabled
-                amountLabel: disableHubFuelScoringPopup ? undefined : '...',
+                fuelDelta: -8, // Default, will be finalized in amount selection
+                amountLabel: '...', // Placeholder until confirmed
                 timestamp: Date.now(),
-                pathPoints: shouldUsePath ? points : undefined,
-                shotType: inferredShotType,
+                pathPoints: isDrag ? points : undefined,
             };
-            if (disablePathDrawingTapOnly) {
-                setPendingShotTypeWaypoint({
-                    ...waypoint,
-                    action: 'hub',
-                    pathPoints: undefined,
-                });
-                setAccumulatedFuel(0);
-                setFuelHistory([]);
-                setPendingWaypoint(null);
-            } else {
-                if (disableHubFuelScoringPopup) {
-                    onAddAction(waypoint);
-                    setAccumulatedFuel(0);
-                    setFuelHistory([]);
-                    setPendingWaypoint(null);
-                } else {
-                    setAccumulatedFuel(0);
-                    setFuelHistory([]);
-                    setPendingWaypoint(waypoint);
-                }
-            }
+            setAccumulatedFuel(0);
+            setFuelHistory([]);
+            setPendingWaypoint(waypoint);
             setIsSelectingScore(false);
         } else if (isSelectingPass) {
             const waypoint: PathWaypoint = {
                 id: generateId(),
                 type: 'pass',
-                action: shouldUsePath ? 'pass-path' : 'partner',
+                action: isDrag ? 'pass-path' : 'partner',
                 position: pos,
                 fuelDelta: 0,
-                amountLabel: disablePassingPopup ? undefined : '...',
+                amountLabel: '...', // Placeholder until confirmed
                 timestamp: Date.now(),
-                pathPoints: shouldUsePath ? points : undefined,
+                pathPoints: isDrag ? points : undefined,
             };
-            if (disablePassingPopup) {
-                onAddAction(waypoint);
-                setAccumulatedFuel(0);
-                setFuelHistory([]);
-                setPendingWaypoint(null);
-            } else {
-                setAccumulatedFuel(0);
-                setFuelHistory([]);
-                setPendingWaypoint(waypoint);
-            }
+            setAccumulatedFuel(0);
+            setFuelHistory([]);
+            setPendingWaypoint(waypoint);
             setIsSelectingPass(false);
         } else if (isSelectingCollect) {
             // Collect still immediate as per plan or consolidate too? 
             // The user said: "I don't think we need to track it for collect, we really only care about how many they scored"
             // So I'll keep collect immediate for speed, but use the unified structure.
-            if (shouldUsePath) {
+            if (isDrag) {
                 const waypoint: PathWaypoint = {
                     id: generateId(),
                     type: 'collect',
@@ -786,24 +488,6 @@ function AutoFieldMapContent({
             setIsSelectingCollect(false);
         }
         resetDrawing();
-    };
-
-    const handleShotTypeSelected = (shotType: 'onTheMove' | 'stationary') => {
-        if (!pendingShotTypeWaypoint) return;
-
-        const scoredWaypoint: PathWaypoint = {
-            ...pendingShotTypeWaypoint,
-            shotType,
-        };
-
-        if (disableHubFuelScoringPopup) {
-            onAddAction(scoredWaypoint);
-            setPendingWaypoint(null);
-        } else {
-            setPendingWaypoint(scoredWaypoint);
-        }
-
-        setPendingShotTypeWaypoint(null);
     };
 
     // Undo wrapper that also clears active broken down state
@@ -826,353 +510,6 @@ function AutoFieldMapContent({
         });
     };
 
-    const proceedToTeleop = useCallback(() => {
-        if (!onProceed) return;
-
-        const stuckEntries = Object.entries(stuckStarts);
-        const finalActions = [...actions];
-        const now = Date.now();
-        const nextStuckStarts: Record<string, number> = {};
-
-        for (const [elementKey, startTime] of stuckEntries) {
-            if (startTime && typeof startTime === 'number') {
-                const obstacleType = elementKey.includes('trench') ? 'trench' : 'bump';
-                const element = FIELD_ELEMENTS[elementKey as keyof typeof FIELD_ELEMENTS];
-                const duration = Math.min(now - startTime, AUTO_PHASE_DURATION_MS);
-
-                const unstuckWaypoint: PathWaypoint = {
-                    id: generateId(),
-                    type: 'unstuck',
-                    action: `unstuck-${obstacleType}`,
-                    position: element ? { x: element.x, y: element.y } : { x: 0, y: 0 },
-                    timestamp: now,
-                    duration,
-                    obstacleType: obstacleType as 'trench' | 'bump',
-                    amountLabel: formatDurationSecondsLabel(duration),
-                };
-
-                finalActions.push(unstuckWaypoint);
-                nextStuckStarts[elementKey] = now;
-            }
-        }
-
-        if (stuckEntries.length > 0) {
-            setStuckStarts(nextStuckStarts);
-        }
-
-        if (brokenDownStart) {
-            const duration = Date.now() - brokenDownStart;
-            const finalTotal = totalBrokenDownTime + duration;
-            localStorage.setItem('autoBrokenDownTime', String(finalTotal));
-        }
-
-        onProceed(finalActions);
-    }, [
-        onProceed,
-        stuckStarts,
-        actions,
-        generateId,
-        setStuckStarts,
-        brokenDownStart,
-        totalBrokenDownTime,
-    ]);
-
-    useEffect(() => {
-        const handleKeyDown = (event: KeyboardEvent) => {
-            const key = event.key.toLowerCase();
-            const target = event.target as HTMLElement | null;
-            const isEditableTarget =
-                !!target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable);
-
-            if (isEditableTarget) return;
-
-            if (key === 'escape') {
-                event.preventDefault();
-
-                if (pendingShotTypeWaypoint) {
-                    setPendingShotTypeWaypoint(null);
-                    setPendingWaypoint(null);
-                    resetDrawing();
-                    return;
-                }
-
-                if (pendingWaypoint) {
-                    setPendingWaypoint(null);
-                    setAccumulatedFuel(0);
-                    setFuelHistory([]);
-                    setClimbLocation(undefined);
-                    resetDrawing();
-                    return;
-                }
-
-                if (selectedStartKey) {
-                    setSelectedStartKey(null);
-                    return;
-                }
-
-                if (isSelectingScore) {
-                    setIsSelectingScore(false);
-                    resetDrawing();
-                    return;
-                }
-
-                if (isSelectingPass) {
-                    setIsSelectingPass(false);
-                    resetDrawing();
-                    return;
-                }
-
-                if (isSelectingCollect) {
-                    setIsSelectingCollect(false);
-                    resetDrawing();
-                    return;
-                }
-
-                if (showPostClimbProceed) {
-                    setShowPostClimbProceed(false);
-                }
-                return;
-            }
-
-            if (selectedStartKey && event.code === 'Space') {
-                event.preventDefault();
-                const startElement = FIELD_ELEMENTS[selectedStartKey];
-                if (!startElement) {
-                    setSelectedStartKey(null);
-                    return;
-                }
-                addWaypoint('start', selectedStartKey, { x: startElement.x, y: startElement.y });
-                setSelectedStartKey(null);
-                return;
-            }
-
-            if (pendingWaypoint || pendingShotTypeWaypoint || selectedStartKey) return;
-
-            if (key === 'z') {
-                event.preventDefault();
-                if (brokenDownStart) {
-                    setBrokenDownStart(null);
-                }
-                if (onUndo) {
-                    onUndo();
-                }
-                return;
-            }
-
-            if (!recordingMode && key === 'x') {
-                event.preventDefault();
-                if (brokenDownStart) {
-                    const duration = Date.now() - brokenDownStart;
-                    const newTotal = totalBrokenDownTime + duration;
-                    setTotalBrokenDownTime(newTotal);
-                    localStorage.setItem('autoBrokenDownTime', String(newTotal));
-                    setBrokenDownStart(null);
-                    localStorage.removeItem('autoBrokenDownStart');
-                } else {
-                    const now = Date.now();
-                    setBrokenDownStart(now);
-                    localStorage.setItem('autoBrokenDownStart', String(now));
-                }
-                return;
-            }
-
-            if (!recordingMode && key === 'enter') {
-                event.preventDefault();
-                proceedToTeleop();
-                return;
-            }
-
-            const visibleAutoElements = getVisibleElements('auto', currentZone);
-            const visibleAutoElementSet = new Set<string>(visibleAutoElements);
-
-            const canScoreFromZone = visibleAutoElementSet.has('hub');
-            const canPassFromZone = visibleAutoElementSet.has('pass') || visibleAutoElementSet.has('pass_alliance');
-            const canCollectFromZone = visibleAutoElementSet.has('collect_alliance') || visibleAutoElementSet.has('collect_neutral');
-            const canDepotFromZone = visibleAutoElementSet.has('depot');
-            const canOutpostFromZone = visibleAutoElementSet.has('outpost');
-            const canFoulFromZone = visibleAutoElementSet.has('opponent_foul');
-            const canClimbFromZone = visibleAutoElementSet.has('tower');
-
-            const canUseTraversalHotkeys =
-                actions.length === 0
-                    ? true
-                    : (
-                        visibleAutoElementSet.has('trench1') ||
-                        visibleAutoElementSet.has('bump1') ||
-                        visibleAutoElementSet.has('bump2') ||
-                        visibleAutoElementSet.has('trench2')
-                    );
-
-            const autoTraversalElementKey = ({
-                '1': 'trench1',
-                '2': 'bump1',
-                '3': 'bump2',
-                '4': 'trench2',
-            } as const)[key];
-
-            if (actions.length === 0 && key === 's') {
-                event.preventDefault();
-                handleElementClick('hub');
-                return;
-            }
-
-            if (autoTraversalElementKey && canUseTraversalHotkeys) {
-                event.preventDefault();
-                handleElementClick(autoTraversalElementKey);
-                return;
-            }
-
-            const isBusyWithSelection =
-                isSelectingScore ||
-                isSelectingPass ||
-                isSelectingCollect ||
-                isAnyStuck ||
-                isBrokenDown ||
-                showPostClimbProceed;
-
-            if (isBusyWithSelection) return;
-
-            if (key === 's') {
-                if (actions.length === 0 || !canScoreFromZone) return;
-                event.preventDefault();
-                setIsSelectingScore(true);
-                return;
-            }
-
-            if (key === 'a') {
-                if (actions.length === 0 || !canPassFromZone) return;
-                event.preventDefault();
-                setIsSelectingPass(true);
-                return;
-            }
-
-            if (key === 'd') {
-                if (actions.length === 0 || !canCollectFromZone) return;
-                event.preventDefault();
-                setIsSelectingCollect(true);
-                return;
-            }
-
-            if (key === 'c') {
-                if (actions.length === 0 || !canDepotFromZone) return;
-                event.preventDefault();
-                handleElementClick('depot');
-                return;
-            }
-
-            if (key === 'g') {
-                if (actions.length === 0 || !canOutpostFromZone) return;
-                event.preventDefault();
-                handleElementClick('outpost');
-                return;
-            }
-
-            if (key === 'v') {
-                if (actions.length === 0 || !canFoulFromZone) return;
-                event.preventDefault();
-                handleElementClick('opponent_foul');
-                return;
-            }
-
-            if (key === 'f') {
-                if (actions.length === 0 || !canClimbFromZone) return;
-                event.preventDefault();
-                const towerElement = FIELD_ELEMENTS.tower;
-                if (!towerElement) return;
-                setFocusClimbTimeInputOnOpen(true);
-                setPendingWaypoint({
-                    id: generateId(),
-                    type: 'climb',
-                    action: 'attempt',
-                    position: { x: towerElement.x, y: towerElement.y },
-                    timestamp: Date.now(),
-                });
-                setClimbResult('success');
-                setClimbLocation(undefined);
-                return;
-            }
-        };
-
-        document.addEventListener('keydown', handleKeyDown);
-        return () => document.removeEventListener('keydown', handleKeyDown);
-    }, [
-        actions.length,
-        addWaypoint,
-        brokenDownStart,
-        currentZone,
-        generateId,
-        isAnyStuck,
-        isBrokenDown,
-        isSelectingCollect,
-        isSelectingPass,
-        isSelectingScore,
-        onUndo,
-        pendingShotTypeWaypoint,
-        pendingWaypoint,
-        proceedToTeleop,
-        recordingMode,
-        resetDrawing,
-        isFieldRotated,
-        selectedStartKey,
-        handleElementClick,
-        setAccumulatedFuel,
-        setBrokenDownStart,
-        setClimbResult,
-        setClimbLocation,
-        setFuelHistory,
-        setFocusClimbTimeInputOnOpen,
-        setIsSelectingCollect,
-        setIsSelectingPass,
-        setIsSelectingScore,
-        setPendingWaypoint,
-        setSelectedStartKey,
-        setShowPostClimbProceed,
-        showPostClimbProceed,
-        totalBrokenDownTime,
-    ]);
-
-    useEffect(() => {
-        if (!pendingWaypoint || pendingWaypoint.type !== 'climb') {
-            setFocusClimbTimeInputOnOpen(false);
-        }
-    }, [pendingWaypoint]);
-
-    useEffect(() => {
-        if (recordingMode || hasAutoAdvancedRef.current) return;
-        if (!shouldAutoAdvanceToTeleop) return;
-        if (sessionStorage.getItem(autoSwitchOnceStorageKey) === 'true') return;
-
-        const isBusyWithAction =
-            pendingWaypoint !== null ||
-            pendingShotTypeWaypoint !== null ||
-            isSelectingScore ||
-            isSelectingPass ||
-            isSelectingCollect ||
-            selectedStartKey !== null ||
-            showPostClimbProceed ||
-            hookDrawingPoints.length > 0;
-
-        if (isBusyWithAction) return;
-
-        hasAutoAdvancedRef.current = true;
-        sessionStorage.setItem(autoSwitchOnceStorageKey, 'true');
-        toast.info("Switching to Teleop");
-        proceedToTeleop();
-    }, [
-        recordingMode,
-        shouldAutoAdvanceToTeleop,
-        autoSwitchOnceStorageKey,
-        pendingWaypoint,
-        pendingShotTypeWaypoint,
-        isSelectingScore,
-        isSelectingPass,
-        isSelectingCollect,
-        selectedStartKey,
-        showPostClimbProceed,
-        hookDrawingPoints,
-        proceedToTeleop,
-    ]);
-
     // ==========================================================================
     // RENDER
     // ==========================================================================
@@ -1182,100 +519,55 @@ function AutoFieldMapContent({
             {/* Header */}
             <FieldHeader
                 phase="auto"
-                headerLabel={headerLabel}
-                headerInputSlot={headerInputSlot}
-                stats={recordingMode ? [] : [
+                stats={[
                     { label: 'Scored', value: totalFuelScored, color: 'green' },
                     { label: 'Passed', value: totalFuelPassed, color: 'purple' },
                 ]}
-                hideStats={recordingMode}
-                customActionSlot={recordingMode ? recordingActionSlot : undefined}
-                currentZone={recordingMode ? null : currentZone}
+                currentZone={currentZone}
                 isFullscreen={isFullscreen}
                 onFullscreenToggle={() => setIsFullscreen(!isFullscreen)}
-                actionLogSlot={recordingMode ? undefined : <AutoActionLog actions={actions} totalScore={totalScore} open={actionLogOpen} onOpenChange={setActionLogOpen} />}
-                onActionLogOpen={recordingMode ? undefined : () => setActionLogOpen(true)}
-                matchNumber={recordingMode ? undefined : matchNumber}
+                actionLogSlot={<AutoActionLog actions={actions} totalScore={totalScore} open={actionLogOpen} onOpenChange={setActionLogOpen} />}
+                onActionLogOpen={() => setActionLogOpen(true)}
+                matchNumber={matchNumber}
                 matchType={matchType}
-                teamNumber={recordingMode ? undefined : teamNumber}
+                teamNumber={teamNumber}
                 alliance={alliance}
                 isFieldRotated={isFieldRotated}
                 canUndo={canUndo}
                 onUndo={handleUndo}
                 onBack={onBack}
-                onProceed={recordingMode ? undefined : proceedToTeleop}
-                highlightProceed={shouldPulseAutoBorder}
-                proceedCountdownSeconds={autoCueCountdownSeconds}
+                onProceed={() => {
+                    // Capture any active broken down time before proceeding
+                    if (brokenDownStart) {
+                        const duration = Date.now() - brokenDownStart;
+                        const finalTotal = totalBrokenDownTime + duration;
+                        localStorage.setItem('autoBrokenDownTime', String(finalTotal));
+                    }
+                    if (onProceed) onProceed();
+                }}
                 toggleFieldOrientation={toggleFieldOrientation}
                 isBrokenDown={isBrokenDown}
-                onBrokenDownToggle={recordingMode ? undefined : handleBrokenDownToggle}
-                onNoShow={enableNoShow !== false ? handleNoShow : undefined}
-                hideOverflowMenu={recordingMode}
-                prominentFullscreenControl={recordingMode}
+                onBrokenDownToggle={handleBrokenDownToggle}
+                shootingTimerSlot={
+                    <ShootingTimer
+                        ref={shootingTimerRef}
+                        initialTime={totalShootingTime}
+                        onTimeChange={setTotalShootingTime}
+                    />
+                }
+                onNoShow={handleNoShow}
             />
 
             {/* Field with Overlay Buttons */}
-            <div className={cn("flex-1 relative", isFullscreen ? "h-full flex items-center justify-center" : "") }>
-                <div
-                    ref={containerRef}
-                    className={cn(
-                        "relative rounded-lg overflow-hidden border border-slate-700 bg-slate-900 select-none",
-                        "w-full aspect-2/1",
-                        isFullscreen ? "max-h-[85vh] m-auto" : "h-auto",
-                        shouldPulseAutoBorder && "border-green-500 animate-pulse",
-                        isFieldRotated && "rotate-180" // 180° rotation for field orientation preference
-                    )}
-                >
-                {!pendingShotTypeWaypoint && (isSelectingScore || isSelectingPass || isSelectingCollect) && (
-                    <div
-                        className={cn(
-                            "absolute inset-x-0 top-1 z-30 flex pointer-events-none",
-                            isFieldRotated && "bottom-1 top-auto",
-                            "justify-center px-2"
-                        )}
-                    >
-                        <Card className={cn(
-                            "pointer-events-none bg-background/70 backdrop-blur-sm shadow-2xl py-1 px-2 sm:py-2 sm:px-3 flex flex-row items-center gap-2 sm:gap-3 max-w-[68%]",
-                            isFieldRotated && "rotate-180"
-                        )}>
-                            <Badge
-                                variant="default"
-                                className={cn(
-                                    "text-[10px] sm:text-xs",
-                                    isSelectingScore
-                                        ? "bg-green-600"
-                                        : isSelectingPass
-                                            ? "bg-purple-600"
-                                            : "bg-yellow-600"
-                                )}
-                            >
-                                {isSelectingScore ? 'SCORING' : isSelectingPass ? 'PASSING' : 'COLLECT'}
-                            </Badge>
-                            <span className="text-xs sm:text-sm font-medium truncate">
-                                {isSelectingScore
-                                    ? (disablePathDrawingTapOnly ? 'Tap where scored' : 'Tap/draw where scored')
-                                    : isSelectingPass
-                                        ? (disablePathDrawingTapOnly ? 'Tap where passed' : 'Tap/draw pass')
-                                        : (disablePathDrawingTapOnly ? 'Tap where collected' : 'Tap/draw collect')}
-                            </span>
-                            <Button
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    if (isSelectingScore) setIsSelectingScore(false);
-                                    if (isSelectingPass) setIsSelectingPass(false);
-                                    if (isSelectingCollect) setIsSelectingCollect(false);
-                                    resetDrawing();
-                                }}
-                                variant="ghost"
-                                size="sm"
-                                className="pointer-events-auto h-7 w-7 p-0 rounded-full"
-                            >
-                                ✕
-                            </Button>
-                        </Card>
-                    </div>
+            <div
+                ref={containerRef}
+                className={cn(
+                    "relative rounded-lg overflow-hidden border border-slate-700 bg-slate-900 select-none",
+                    "w-full aspect-[2/1]",
+                    isFullscreen ? "max-h-[85vh] m-auto" : "h-auto",
+                    isFieldRotated && "rotate-180" // 180° rotation for field orientation preference
                 )}
-
+            >
                 {/* Field Background */}
                 <img
                     src={fieldImage}
@@ -1300,12 +592,12 @@ function AutoFieldMapContent({
                     drawConnectedPaths={true}
                     drawingZoneBounds={currentZoneBounds}
                     onPointerDown={handleDrawStart}
-                    onPointerMove={disablePathDrawingTapOnly ? undefined : handleDrawMove}
+                    onPointerMove={handleDrawMove}
                     onPointerUp={handleDrawEnd}
                 />
 
                 {/* Overlay Buttons */}
-                {!pendingShotTypeWaypoint && !isSelectingScore && !isSelectingPass && !isSelectingCollect && (
+                {!isSelectingScore && !isSelectingPass && !isSelectingCollect && (
                     <div className="absolute inset-0 z-10">
                         {actions.length === 0 ? (
                             <>
@@ -1314,7 +606,6 @@ function AutoFieldMapContent({
                                         key={key}
                                         elementKey={key}
                                         element={FIELD_ELEMENTS[key]!}
-                                        hotkeyLabel={autoStartHotkeyMap[key]}
                                         isVisible={true}
                                         onClick={handleElementClick}
                                         alliance={alliance}
@@ -1330,24 +621,19 @@ function AutoFieldMapContent({
                                 {getVisibleElements('auto', currentZone).map(key => {
                                     const isPersistentStuck = !!stuckStarts[key];
                                     const isPopupActive = !!(pendingWaypoint || isSelectingScore || isSelectingPass || isSelectingCollect || selectedStartKey);
-                                    const displayElement =
-                                        key === 'hub' && actions.length > 0
-                                            ? { ...FIELD_ELEMENTS[key]!, name: 'Score' }
-                                            : FIELD_ELEMENTS[key]!;
 
                                     return (
                                         <FieldButton
                                             key={key}
                                             elementKey={key}
-                                            element={displayElement}
-                                            hotkeyLabel={autoElementHotkeys[key]}
+                                            element={FIELD_ELEMENTS[key]!}
                                             isVisible={true}
                                             onClick={handleElementClick}
                                             alliance={alliance}
                                             isFieldRotated={isFieldRotated}
                                             containerWidth={canvasDimensions.width}
-                                            isStuck={recordingMode ? false : isPersistentStuck}
-                                            isPotentialStuck={recordingMode ? false : stuckElementKey === key}
+                                            isStuck={isPersistentStuck}
+                                            isPotentialStuck={stuckElementKey === key}
                                             isDisabled={isPopupActive || (isAnyStuck && !isPersistentStuck)}
                                         />
                                     );
@@ -1357,22 +643,56 @@ function AutoFieldMapContent({
                     </div>
                 )}
 
-                {/* Start Selection Guidance Overlay */}
-                {actions.length === 0 && !selectedStartKey && !pendingShotTypeWaypoint && (
-                    <div
-                        className="absolute left-1/2 z-20 -translate-x-1/2 pointer-events-none"
-                        style={{ top: `${Math.max(4, ZONE_BOUNDS.neutralZone.yMin * 100 + 2)}%` }}
-                    >
-                        <Card className={cn(
-                            "pointer-events-none bg-background/95 backdrop-blur-sm shadow-2xl py-1 px-2 sm:py-1.5 sm:px-2.5 flex flex-row items-center gap-2 max-w-[72vw] sm:max-w-[58vw]",
-                            isFieldRotated && "rotate-180"
-                        )}>
-                            <Badge variant="default" className="bg-blue-600 text-[9px] sm:text-[10px] px-1.5 py-0.5">
-                                START POSITION
-                            </Badge>
-                            <span className="text-[11px] sm:text-xs font-medium truncate">
-                                Select start location
-                            </span>
+                {/* Score Selection Overlay */}
+                {isSelectingScore && (
+                    <div className={cn("absolute inset-0 z-30 flex items-end justify-center pb-4 pointer-events-none", isFieldRotated && "rotate-180")}>
+                        <Card className="pointer-events-auto bg-background/95 backdrop-blur-sm border-green-500/50 shadow-2xl py-2 px-3 flex flex-row items-center gap-4">
+                            <Badge variant="default" className="bg-green-600">SCORING MODE</Badge>
+                            <span className="text-sm font-medium">Tap or draw where the robot scored</span>
+                            <Button
+                                onClick={(e) => { e.stopPropagation(); setIsSelectingScore(false); resetDrawing(); }}
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 w-8 p-0 rounded-full"
+                            >
+                                ✕
+                            </Button>
+                        </Card>
+                    </div>
+                )}
+
+                {/* Pass Selection Overlay */}
+                {isSelectingPass && (
+                    <div className={cn("absolute inset-0 z-30 flex items-end justify-center pb-4 pointer-events-none", isFieldRotated && "rotate-180")}>
+                        <Card className="pointer-events-auto bg-background/95 backdrop-blur-sm border-purple-500/50 shadow-2xl py-2 px-3 flex flex-row items-center gap-4">
+                            <Badge variant="default" className="bg-purple-600">PASSING MODE</Badge>
+                            <span className="text-sm font-medium">Tap or draw where the robot passed from</span>
+                            <Button
+                                onClick={(e) => { e.stopPropagation(); setIsSelectingPass(false); resetDrawing(); }}
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 w-8 p-0 rounded-full"
+                            >
+                                ✕
+                            </Button>
+                        </Card>
+                    </div>
+                )}
+
+                {/* Collect Selection Overlay */}
+                {isSelectingCollect && (
+                    <div className={cn("absolute inset-0 z-30 flex items-end justify-center pb-4 pointer-events-none", isFieldRotated && "rotate-180")}>
+                        <Card className="pointer-events-auto bg-background/95 backdrop-blur-sm border-yellow-500/50 shadow-2xl py-2 px-3 flex flex-row items-center gap-4">
+                            <Badge variant="default" className="bg-yellow-600">COLLECT MODE</Badge>
+                            <span className="text-sm font-medium">Tap or draw where the robot collected</span>
+                            <Button
+                                onClick={(e) => { e.stopPropagation(); setIsSelectingCollect(false); resetDrawing(); }}
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 w-8 p-0 rounded-full"
+                            >
+                                ✕
+                            </Button>
                         </Card>
                     </div>
                 )}
@@ -1401,22 +721,9 @@ function AutoFieldMapContent({
                 {showPostClimbProceed && onProceed && (
                     <PostClimbProceed
                         isFieldRotated={isFieldRotated}
-                        onProceed={proceedToTeleop}
+                        onProceed={onProceed}
                         onStay={() => setShowPostClimbProceed(false)}
                         nextPhaseName="Teleop"
-                        highlightProceed={shouldPulseAutoBorder}
-                    />
-                )}
-
-                {pendingShotTypeWaypoint && (
-                    <ShotTypePopup
-                        isFieldRotated={isFieldRotated}
-                        onSelect={handleShotTypeSelected}
-                        onCancel={() => {
-                            setPendingShotTypeWaypoint(null);
-                            setPendingWaypoint(null);
-                            resetDrawing();
-                        }}
                     />
                 )}
 
@@ -1442,25 +749,14 @@ function AutoFieldMapContent({
                             setFuelHistory(prev => prev.slice(0, -1));
                         }}
                         onClimbResultSelect={setClimbResult}
-                        climbWithLocation={true}
-                        climbLocation={climbLocation}
-                        onClimbLocationSelect={setClimbLocation}
-                        focusClimbTimeInputOnOpen={focusClimbTimeInputOnOpen}
-                        allowClimbFail={!recordingMode}
-                        skipClimbOutcomeSelection={recordingMode}
-                        onConfirm={(selectedClimbStartTimeSecRemaining) => {
+                        onConfirm={() => {
                             let delta = 0;
                             let label = '';
                             let action = pendingWaypoint.action;
 
                             if (pendingWaypoint.type === 'climb') {
                                 action = climbResult === 'success' ? 'climb-success' : 'climb-fail';
-                                const locationLabel = climbLocation === 'side'
-                                    ? 'Side'
-                                    : climbLocation === 'middle'
-                                        ? 'Middle'
-                                        : '';
-                                label = `${locationLabel} ${climbResult === 'success' ? 'Succeeded' : 'Failed'}`.trim();
+                                label = climbResult === 'success' ? 'Succeeded' : 'Failed';
                             } else {
                                 delta = pendingWaypoint.type === 'score' || pendingWaypoint.type === 'pass' ? -accumulatedFuel : 0;
                                 label = pendingWaypoint.type === 'score' ? `+${accumulatedFuel}` : `Pass (${accumulatedFuel})`;
@@ -1470,19 +766,18 @@ function AutoFieldMapContent({
                                 ...pendingWaypoint,
                                 fuelDelta: delta,
                                 amountLabel: label,
-                                action: action,
-                                climbLocation: pendingWaypoint.type === 'climb' ? climbLocation : undefined,
-                                climbStartTimeSecRemaining: pendingWaypoint.type === 'climb'
-                                    ? selectedClimbStartTimeSecRemaining ?? null
-                                    : undefined,
+                                action: action
                             };
                             onAddAction(finalized);
                             setPendingWaypoint(null);
-                            setFocusClimbTimeInputOnOpen(false);
                             setAccumulatedFuel(0);
                             setFuelHistory([]);
                             setClimbResult(null);
-                            setClimbLocation(undefined);
+
+                            // Stop shooting timer when scoring is confirmed (only for score type)
+                            if (finalized.type === 'score') {
+                                shootingTimerRef.current?.stop();
+                            }
 
                             // Show transition popup after climb
                             if (finalized.type === 'climb' && onProceed) {
@@ -1494,19 +789,24 @@ function AutoFieldMapContent({
                             resetDrawing();
                             setAccumulatedFuel(0);
                             setFuelHistory([]);
-                            setClimbLocation(undefined);
+                            
+                            // Stop timer if user cancels scoring
+                            if (shootingTimerRef.current?.isRunning()) {
+                                shootingTimerRef.current?.stop();
+                            }
                         }}
                     />
                 )}
-                </div>
-            </div>
 
+
+
+            </div>
         </div>
     );
 
     if (isFullscreen) {
         return (
-            <div className="fixed inset-0 z-100 bg-background p-4 flex flex-col">
+            <div className="fixed inset-0 z-[100] bg-background p-4 flex flex-col">
                 {content}
             </div>
         );
