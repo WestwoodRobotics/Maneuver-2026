@@ -154,6 +154,8 @@ export const strategyAnalysis: StrategyAnalysis<ScoutingEntryTemplate> = {
                 avgTeleopFuelPassed: 0,
                 avgFuelPassed: 0,
                 avgTotalFuel: 0,
+                                avgAutoShootingTime: 0,
+                                avgTeleopShootingTime: 0,
                 maxAutoFuel: 0,
                 maxTeleopFuel: 0,
                 maxAutoFuelPassed: 0,
@@ -201,6 +203,8 @@ export const strategyAnalysis: StrategyAnalysis<ScoutingEntryTemplate> = {
             acc.autoFuelPassed += gameData?.auto?.fuelPassedCount || 0;
             acc.teleopFuelPassed += gameData?.teleop?.fuelPassedCount || 0;
             acc.fuelPassed += (gameData?.auto?.fuelPassedCount || 0) + (gameData?.teleop?.fuelPassedCount || 0);
+            acc.autoShootingTime += gameData?.auto?.shootingTime || 0;
+            acc.teleopShootingTime += gameData?.teleop?.shootingTime || 0;
 
             // Toggles
             acc.mobility += gameData?.auto?.leftStartZone ? 1 : 0;
@@ -242,6 +246,8 @@ export const strategyAnalysis: StrategyAnalysis<ScoutingEntryTemplate> = {
             autoFuelPassed: 0,
             teleopFuelPassed: 0,
             fuelPassed: 0,
+                        autoShootingTime: 0,
+                        teleopShootingTime: 0,
             mobility: 0,
             autoClimb: 0,
             climbL1: 0,
@@ -384,6 +390,8 @@ export const strategyAnalysis: StrategyAnalysis<ScoutingEntryTemplate> = {
             avgTeleopFuelPassed: Math.round((totals.teleopFuelPassed / matchCount) * 10) / 10,
             avgFuelPassed: Math.round((totals.fuelPassed / matchCount) * 10) / 10,
             avgTotalFuel: Math.round(((totals.autoFuel + totals.teleopFuel) / matchCount) * 10) / 10,
+                        avgAutoShootingTime: Math.round((totals.autoShootingTime / matchCount) / 1000 * 10) / 10, // Convert to seconds
+                        avgTeleopShootingTime: Math.round((totals.teleopShootingTime / matchCount) / 1000 * 10) / 10, // Convert to seconds
             maxAutoFuel: Math.max(...matchResults.map(m => m.autoFuel || 0)),
             maxTeleopFuel: Math.max(...matchResults.map(m => m.teleopFuel || 0)),
             maxAutoFuelPassed: Math.max(...matchResults.map(m => m.autoFuelPassed || 0)),

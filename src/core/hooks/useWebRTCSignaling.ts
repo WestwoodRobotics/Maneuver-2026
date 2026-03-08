@@ -37,6 +37,7 @@ export function useWebRTCSignaling({
   const [connected, setConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+    const pollInFlightRef = useRef<boolean>(false);
   const functionsAvailableRef = useRef<boolean | null>(null);
 
   // Determine the signaling server URL

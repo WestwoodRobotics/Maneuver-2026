@@ -2,7 +2,6 @@
 // This file contains TBA-specific storage utilities and types
 // Full TBA API integration
 
-const TBA_BASE_URL = 'https://www.thebluealliance.com/api/v3';
 
 // ============================================================================
 // Type Definitions
@@ -88,7 +87,7 @@ export const getMatchResult = (match: TBAMatch): {
 /**
  * Get teams for an event
  */
-export const getEventTeams = async (eventKey: string, apiKey: string): Promise<TBATeam[]> => {
+export const getEventTeams = async (eventKey: string, _apiKey: string): Promise<TBATeam[]> => {
   const endpoint = `/event/${eventKey}/teams/keys`;
   
   const response = await fetch(`/api/tba-proxy?endpoint=${encodeURIComponent(endpoint)}`);

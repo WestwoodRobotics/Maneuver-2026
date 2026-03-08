@@ -129,7 +129,7 @@ const TBA_BASE_URL = 'https://www.thebluealliance.com/api/v3';
  */
 export async function fetchTBAMatchDetail(
   matchKey: string,
-  apiKey: string
+  _apiKey: string
 ): Promise<TBAMatchData> {
   const endpoint = `/match/${matchKey}`;
   
