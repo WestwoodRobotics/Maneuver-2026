@@ -55,6 +55,7 @@ export interface PitScoutingEntryBase {
     robotPhoto?: string;            // Base64 or URL
     weight?: number;                // Robot weight in pounds
     drivetrain?: DrivetrainType;    // Standard FRC drivetrain types
+    gearRatio?: number;             // Drivetrain gear ratio
     programmingLanguage?: ProgrammingLanguage; // Standard FRC programming languages
     notes?: string;                 // General observations
 

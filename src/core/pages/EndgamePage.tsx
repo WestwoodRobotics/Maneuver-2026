@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/core/components/ui/c
 import { Button } from "@/core/components/ui/button";
 import { Badge } from "@/core/components/ui/badge";
 import { Textarea } from "@/core/components/ui/textarea";
+import { Input } from "@/core/components/ui/input";
 import { Label } from "@/core/components/ui/label";
 import { toast } from "sonner";
 import { ArrowRight } from "lucide-react";
@@ -25,6 +26,7 @@ const EndgamePage = () => {
     return saved ? JSON.parse(saved) : {};
   });
   const [comment, setComment] = useState("");
+  const [fuelPerSecond, setFuelPerSecond] = useState<number | "">("");
 
   const updateRobotStatus = (updates: Partial<any>) => {
     setRobotStatus((prev: any) => {
@@ -36,8 +38,9 @@ const EndgamePage = () => {
   };
 
   const handleSubmit = async () => {
-    // Save endgame status to localStorage so submitMatch can access it
-    localStorage.setItem("endgameRobotStatus", JSON.stringify(robotStatus));
+    // Save endgame status (including fuelPerSecond) to localStorage so submitMatch can access it
+    const finalStatus = { ...robotStatus, ...(fuelPerSecond !== "" ? { fuelPerSecond } : {}) };
+    localStorage.setItem("endgameRobotStatus", JSON.stringify(finalStatus));
 
     await submitMatchData({
       inputs: states?.inputs,
@@ -128,6 +131,41 @@ const EndgamePage = () => {
             </CardContent>
           </Card>
         )}
+
+        {/* Fuel Per Second Section */}
+        <Card className="w-full">
+          <CardHeader>
+            <CardTitle className="text-lg">Fuel per Second</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              <Label htmlFor="fuelPerSecond">Fuel per Second</Label>
+              <Input
+                id="fuelPerSecond"
+                type="number"
+                placeholder="e.g., 3.5"
+                value={fuelPerSecond}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  if (value === "") {
+                    setFuelPerSecond("");
+                  } else {
+                    const numValue = parseFloat(value);
+                    if (!isNaN(numValue) && numValue >= 0) {
+                      setFuelPerSecond(numValue);
+                    }
+                  }
+                }}
+                min="0"
+                step="0.1"
+                className="text-lg"
+              />
+              <p className="text-sm text-muted-foreground">
+                Estimated fuel scored per second during teleop
+              </p>
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Comments Section */}
         <Card className="w-full flex-1">
