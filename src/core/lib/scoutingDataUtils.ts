@@ -96,7 +96,9 @@ export const getDataSummary = async (): Promise<{
   return {
     totalEntries: entries.length,
     teams: Array.from(teams).sort((a, b) => a - b),
-    matches: Array.from(matches).sort(),
+    matches: Array.from(matches).sort((a, b) =>
+      a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' })
+    ),
     scouts: Array.from(scouts).sort(),
     events: Array.from(events).sort()
   };

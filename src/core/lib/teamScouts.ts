@@ -21,7 +21,7 @@ export const TEAM_SCOUTS = [
     "Darryl Tang",
     "Gautam Kapasi",
     "Geet Nijhawan",
-    "Ibrahim",
+    "Ibrahim Kabil",
     "Jacob Priester",
     "Jadon Daniel",
     "Lasya Nugala",

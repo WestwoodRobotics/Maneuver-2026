@@ -13,6 +13,7 @@ interface PitScoutingFormState {
   robotPhoto?: string;
   weight?: number;
   drivetrain?: DrivetrainType;
+  gearRatio?: number;
   programmingLanguage?: ProgrammingLanguage;
   notes?: string;
   gameData?: Record<string, unknown>;
@@ -29,6 +30,7 @@ interface UsePitScoutingFormReturn {
   setRobotPhoto: (value: string | undefined) => void;
   setWeight: (value: number | undefined) => void;
   setDrivetrain: (value: DrivetrainType | undefined) => void;
+  setGearRatio: (value: number | undefined) => void;
   setProgrammingLanguage: (value: ProgrammingLanguage | undefined) => void;
   setNotes: (value: string | undefined) => void;
 
@@ -54,6 +56,7 @@ export function usePitScoutingForm(): UsePitScoutingFormReturn {
     robotPhoto: undefined,
     weight: undefined,
     drivetrain: undefined,
+    gearRatio: undefined,
     programmingLanguage: undefined,
     notes: undefined,
     gameData: undefined,
@@ -84,6 +87,7 @@ export function usePitScoutingForm(): UsePitScoutingFormReturn {
           robotPhoto: existing.robotPhoto,
           weight: existing.weight,
           drivetrain: existing.drivetrain,
+          gearRatio: (existing as any).gearRatio,
           programmingLanguage: existing.programmingLanguage,
           notes: existing.notes,
           gameData: existing.gameData,
@@ -124,6 +128,10 @@ export function usePitScoutingForm(): UsePitScoutingFormReturn {
 
   const setDrivetrain = useCallback((value: DrivetrainType | undefined) => {
     setFormState((prev) => ({ ...prev, drivetrain: value }));
+  }, []);
+
+  const setGearRatio = useCallback((value: number | undefined) => {
+    setFormState((prev) => ({ ...prev, gearRatio: value }));
   }, []);
 
   const setProgrammingLanguage = useCallback(
@@ -181,6 +189,7 @@ export function usePitScoutingForm(): UsePitScoutingFormReturn {
         robotPhoto: formState.robotPhoto,
         weight: formState.weight,
         drivetrain: formState.drivetrain,
+        gearRatio: formState.gearRatio,
         programmingLanguage: formState.programmingLanguage,
         notes: formState.notes,
         gameData: formState.gameData ?? {}, // Default to empty object if undefined
@@ -213,6 +222,7 @@ export function usePitScoutingForm(): UsePitScoutingFormReturn {
       robotPhoto: undefined,
       weight: undefined,
       drivetrain: undefined,
+      gearRatio: undefined,
       programmingLanguage: undefined,
       notes: undefined,
       gameData: undefined,
@@ -228,6 +238,7 @@ export function usePitScoutingForm(): UsePitScoutingFormReturn {
     setRobotPhoto,
     setWeight,
     setDrivetrain,
+    setGearRatio,
     setProgrammingLanguage,
     setNotes,
     setGameData,

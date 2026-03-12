@@ -169,7 +169,8 @@ export const UniversalFountainScanner = ({
         return;
       }
 
-      addDebugMsg(`🎯 Scanned packet ${packet.packetId} with indices [${packet.indices.join(',')}]`);
+      const indicesDisplay = Array.isArray(packet.indices) ? packet.indices.join(',') : 'unknown';
+      addDebugMsg(`🎯 Scanned packet ${packet.packetId} with indices [${indicesDisplay}]`);
       addDebugMsg(`🆔 Session: ${packet.sessionId.slice(-8)}`);
 
       if (packet.type !== expectedPacketType) {

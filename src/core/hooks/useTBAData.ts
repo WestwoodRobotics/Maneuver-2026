@@ -24,7 +24,7 @@ export const useTBAData = () => {
   const [teams, setTeams] = useState<TBATeam[]>([]);
   const [isStored, setIsStored] = useState(false);
 
-  const fetchMatchDataFromTBA = async (tbaApiKey: string, tbaEventKey: string, rememberForSession: boolean, setApiKey: (key: string) => void) => {
+  const fetchMatchDataFromTBA = async (_tbaApiKey: string, tbaEventKey: string, _rememberForSession: boolean, _setApiKey: (key: string) => void) => {
     if (!tbaEventKey.trim()) {
       toast.error("Please enter an event key");
       return;
@@ -101,7 +101,7 @@ export const useTBAData = () => {
     }
   };
 
-  const loadMatchResults = async (tbaApiKey: string, tbaEventKey: string, rememberForSession: boolean, setApiKey: (key: string) => void) => {
+  const loadMatchResults = async (_tbaApiKey: string, tbaEventKey: string, _rememberForSession: boolean, _setApiKey: (key: string) => void) => {
     if (!tbaEventKey.trim()) {
       toast.error('Please enter an event key');
       return;
@@ -149,7 +149,7 @@ export const useTBAData = () => {
     }
   };
 
-  const loadEventTeams = async (tbaApiKey: string, tbaEventKey: string, rememberForSession: boolean, setApiKey: (key: string) => void) => {
+  const loadEventTeams = async (tbaApiKey: string, tbaEventKey: string, _rememberForSession: boolean, _setApiKey: (key: string) => void) => {
     if (!tbaEventKey.trim()) {
       toast.error('Please enter an event key');
       return;

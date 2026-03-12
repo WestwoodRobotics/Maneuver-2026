@@ -14,18 +14,22 @@ import type { DrivetrainType, ProgrammingLanguage } from "@/types/database";
 interface TechnicalSpecificationsProps {
   weight?: number;
   drivetrain?: DrivetrainType;
+  gearRatio?: number;
   programmingLanguage?: ProgrammingLanguage;
   onWeightChange: (value: number | undefined) => void;
   onDrivetrainChange: (value: DrivetrainType | undefined) => void;
+  onGearRatioChange: (value: number | undefined) => void;
   onProgrammingLanguageChange: (value: ProgrammingLanguage | undefined) => void;
 }
 
 export function TechnicalSpecifications({
   weight,
   drivetrain,
+  gearRatio,
   programmingLanguage,
   onWeightChange,
   onDrivetrainChange,
+  onGearRatioChange,
   onProgrammingLanguageChange,
 }: TechnicalSpecificationsProps) {
   const handleWeightChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -95,6 +99,37 @@ export function TechnicalSpecifications({
           </Select>
           <p className="text-sm text-muted-foreground">
             Optional: Type of drivetrain used by the robot
+          </p>
+        </div>
+
+        {/* Gear Ratio Input */}
+        <div className="space-y-2">
+          <Label htmlFor="gearRatio" className="flex items-center gap-2">
+            <Car className="h-4 w-4" />
+            Drivetrain Gear Ratio
+          </Label>
+          <Input
+            id="gearRatio"
+            type="number"
+            placeholder="e.g., 6.75"
+            value={gearRatio ?? ""}
+            onChange={(e) => {
+              const value = e.target.value;
+              if (value === "") {
+                onGearRatioChange(undefined);
+              } else {
+                const numValue = parseFloat(value);
+                if (!isNaN(numValue) && numValue > 0) {
+                  onGearRatioChange(numValue);
+                }
+              }
+            }}
+            min="0"
+            step="0.01"
+            className="text-lg"
+          />
+          <p className="text-sm text-muted-foreground">
+            Optional: Overall gear ratio of the drivetrain (e.g., 6.75:1 → enter 6.75)
           </p>
         </div>
 

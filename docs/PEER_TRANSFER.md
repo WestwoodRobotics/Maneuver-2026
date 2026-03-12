@@ -133,7 +133,7 @@ const { pushData, loadDataByType } = usePeerTransferPush({
 });
 
 // Push scouting data to all connected scouts
-await pushData('scouting', connectedScounts);
+await pushData('scouting', connectedScouts);
 ```
 
 ### `usePeerTransferImport`

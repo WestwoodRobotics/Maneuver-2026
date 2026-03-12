@@ -12,7 +12,7 @@ export interface MatchStrategyStatConfig {
     key: string;  // Path to stat in TeamStats object (e.g., "rawValues.totalFuel")
     label: string;  // Display label
     color?: string;  // Tailwind color class (e.g., "text-orange-600")
-    format?: 'number' | 'percent';  // How to display the value
+    format?: 'number' | 'percent' | 'time';  // How to display the value
     decimals?: number;  // Number of decimal places (default: 1)
     aggregation?: 'average' | 'max' | 'p75' | 'sum';  // How to aggregate rawValues arrays (default: 'average')
 }
@@ -266,7 +266,7 @@ export function getStatValue(
  */
 export function formatStatValue(
     value: number | string | undefined,
-    format: 'number' | 'percent' = 'number',
+    format: 'number' | 'percent' | 'time' = 'number',
     decimals: number = 1
 ): string {
     if (value === undefined || value === null) return '-';
@@ -278,6 +278,10 @@ export function formatStatValue(
 
     if (format === 'percent') {
         return `${rounded}%`;
+    }
+
+    if (format === 'time') {
+        return `${rounded}s`;
     }
 
     return rounded.toString();

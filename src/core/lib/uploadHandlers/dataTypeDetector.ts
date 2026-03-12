@@ -19,9 +19,22 @@ export const detectDataType = (jsonData: unknown): 'scouting' | 'scoutProfiles' 
     const entries = data.entries as unknown[];
     if (entries.length > 0 && typeof entries[0] === 'object' && entries[0] !== null) {
       const entry = entries[0] as Record<string, unknown>;
-      if (entry.teamNumber && entry.scoutName && 
-          (entry.drivetrain !== undefined || entry.weight !== undefined || 
-           entry.reportedAutoScoring !== undefined || entry.reportedTeleopScoring !== undefined)) {
+      // Check for pit-specific indicators
+      const isPit = entry.teamNumber && entry.scoutName && (
+        // Standard pit fields
+        entry.drivetrain !== undefined || 
+        entry.weight !== undefined || 
+        entry.reportedAutoScoring !== undefined || 
+        entry.reportedTeleopScoring !== undefined ||
+        // Additional pit indicators
+        entry.robotPhoto !== undefined ||
+        (typeof entry.id === 'string' && entry.id.startsWith('pit-')) ||
+        // Pit-only gameData structure
+        (entry.gameData && typeof entry.gameData === 'object' && 
+         (entry.gameData as Record<string, unknown>).drivetrain !== undefined)
+      );
+      
+      if (isPit) {
         return 'pitScouting';
       }
     }

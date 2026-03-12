@@ -37,6 +37,7 @@ export function useWebRTCSignaling({
   const [connected, setConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+    const pollInFlightRef = useRef<boolean>(false);
   const functionsAvailableRef = useRef<boolean | null>(null);
 
   // Determine the signaling server URL
@@ -168,6 +169,13 @@ export function useWebRTCSignaling({
       return;
     }
 
+    // Prevent overlapping polls
+    if (pollInFlightRef.current) {
+      return;
+    }
+
+    pollInFlightRef.current = true;
+
     // console.log(`🔄 Polling room ${roomId} as ${peerId.substring(0, 8)}...`);
 
     try {
@@ -203,6 +211,8 @@ export function useWebRTCSignaling({
         console.error('Polling error:', err);
       }
       // Don't set error state for polling failures, just log them
+    } finally {
+      pollInFlightRef.current = false;
     }
   }, [roomId, peerId, enabled, connected, signalingUrl, onMessage]);
 

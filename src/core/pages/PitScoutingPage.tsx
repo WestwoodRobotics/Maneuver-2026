@@ -39,6 +39,7 @@ export function PitScoutingPage({
     setRobotPhoto,
     setWeight,
     setDrivetrain,
+    setGearRatio,
     setProgrammingLanguage,
     setNotes,
     setGameData,
@@ -101,9 +102,11 @@ export function PitScoutingPage({
         <TechnicalSpecifications
           weight={formState.weight}
           drivetrain={formState.drivetrain}
+          gearRatio={formState.gearRatio}
           programmingLanguage={formState.programmingLanguage}
           onWeightChange={setWeight}
           onDrivetrainChange={setDrivetrain}
+          onGearRatioChange={setGearRatio}
           onProgrammingLanguageChange={setProgrammingLanguage}
         />
 

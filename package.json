@@ -2,11 +2,10 @@
   "name": "maneuver-2026",
   "version": "1.0.0",
   "private": true,
-  "description": "A offline-first, UX focused FRC strategy and scouting app for the 2026 FRC game, Rebuilt",
+  "description": "An offline-first, UX focused FRC strategy and scouting app for the 2026 FRC game, Rebuilt",
   "type": "module",
   "scripts": {
-    "dev": "netlify dev",
-    "dev:vite": "vite",
+    "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
@@ -89,8 +88,8 @@
     "zod": "^3.23.8"
   },
   "devDependencies": {
+    "@cloudflare/workers-types": "^4.20260307.1",
     "@eslint/js": "^9.15.0",
-    "@netlify/functions": "^5.1.2",
     "@tailwindcss/vite": "^4.0.0-beta.6",
     "@types/d3": "^7.4.3",
     "@types/node": "^22.10.1",
@@ -105,7 +104,6 @@
     "eslint-plugin-react-refresh": "^0.4.14",
     "globals": "^15.12.0",
     "knip": "^5.80.2",
-    "netlify-cli": "^17.38.1",
     "prettier": "^3.3.3",
     "rimraf": "^6.0.1",
     "tailwindcss": "^4.0.0-beta.6",
