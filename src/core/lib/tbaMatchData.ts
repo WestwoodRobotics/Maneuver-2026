@@ -144,7 +144,6 @@ export async function fetchTBAMatchDetail(
   }
 
   const data = await response.json();
-  console.log("Fetch res: ", data);
   return data as TBAMatchData;
 }
 
@@ -174,7 +173,6 @@ export async function fetchTBAEventMatches(
   }
 
   const data = await response.json();
-  console.log("Fetch res: ", data);
   return data as TBAMatchSimple[];
 }
 
@@ -205,6 +203,5 @@ export async function fetchTBAEventMatchesDetailed(
   }
 
   const data = await response.json();
-  console.log("Fetch res: ", data);
   return data as TBAMatchData[];
 }
