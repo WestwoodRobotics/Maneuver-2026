@@ -1,10 +1,5 @@
 import { cn } from "@/core/lib/utils";
-import { Button } from "@/core/components/ui/button";
-import { Card, CardContent } from "@/core/components/ui/card";
 import { DataAttribution } from "@/core/components/DataAttribution";
-import { useState, useEffect } from "react";
-import { analytics } from '@/core/lib/analytics';
-import { haptics } from '@/core/lib/haptics';
 
 /**
  * HomePage Props
