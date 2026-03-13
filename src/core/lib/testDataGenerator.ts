@@ -215,17 +215,10 @@ export const generateTBAAlignedScoutingData = async (matchCount: number = 10): P
         return { success: false, message: 'No event selected. Please select an event first.', matchesGenerated: 0 };
     }
 
-    // Get TBA API key
-    const apiKey = import.meta.env.VITE_TBA_API_KEY;
-    if (!apiKey) {
-        return { success: false, message: 'TBA API key not configured in .env file.', matchesGenerated: 0 };
-    }
-
     try {
-        // Fetch TBA matches for the event
-        const response = await fetch(`https://www.thebluealliance.com/api/v3/event/${eventKey}/matches`, {
-            headers: { 'X-TBA-Auth-Key': apiKey }
-        });
+        // Fetch TBA matches for the event using the proxy (API key is server-side)
+        const endpoint = `/event/${eventKey}/matches`;
+        const response = await fetch(`/api/tba-proxy?endpoint=${encodeURIComponent(endpoint)}`);
 
         if (!response.ok) {
             return { success: false, message: `TBA API error: ${response.status}`, matchesGenerated: 0 };

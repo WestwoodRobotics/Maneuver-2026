@@ -1,8 +1,6 @@
 // @ts-nocheck
 // The Blue Alliance API utilities
 const TBA_BASE_URL = 'https://www.thebluealliance.com/api/v3';
-// Replace this with your actual TBA API key from https://www.thebluealliance.com/account
-const TBA_AUTH_KEY = 'YOUR_TBA_API_KEY_HERE';
 
 export interface TBAMatch {
   key: string;

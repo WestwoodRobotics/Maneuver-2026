@@ -12,14 +12,9 @@ export const onRequest = async (
     return new Response('Method not allowed', { status: 405 });
   }
 
-  // Get the endpoint and event key
+  // Get the endpoint from query parameters
   const url = new URL(request.url);
   const endpoint = url.searchParams.get("endpoint");
-  const eventKey = url.searchParams.get("event-key");
-
-  if (!eventKey) {
-    return new Response('Missing eventKey parameter', { status: 400 })
-  }
 
   if (!endpoint) {
     return new Response('Missing endpoint parameter', { status: 400 });

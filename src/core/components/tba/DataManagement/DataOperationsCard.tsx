@@ -17,7 +17,6 @@ import { type TBADataType } from '../EventConfiguration/DataTypeSelector';
 interface DataOperationsCardProps {
   dataType: TBADataType;
   eventKey: string;
-  apiKey: string;
   nexusApiKey: string;
   matchDataLoading: boolean;
   matchResultsLoading: boolean;
@@ -34,7 +33,6 @@ interface DataOperationsCardProps {
 export const DataOperationsCard: React.FC<DataOperationsCardProps> = ({
   dataType,
   eventKey,
-  apiKey,
   nexusApiKey,
   matchDataLoading,
   matchResultsLoading,
@@ -103,14 +101,13 @@ export const DataOperationsCard: React.FC<DataOperationsCardProps> = ({
   if (!dataTypeInfo) return null;
 
   const getLoadButton = () => {
-    const { requiresEvent, requiresTBA, requiresNexus } = dataTypeInfo;
+    const { requiresEvent, requiresNexus } = dataTypeInfo;
 
-    // Check requirements
+    // Check requirements (TBA API key is now server-side only)
     const hasEventKey = !requiresEvent || eventKey.trim();
-    const hasTBAKey = !requiresTBA || apiKey.trim();
     const hasNexusKey = !requiresNexus || nexusApiKey.trim();
 
-    const canLoad = hasEventKey && hasTBAKey && hasNexusKey;
+    const canLoad = hasEventKey && hasNexusKey;
 
     switch (dataType) {
       case 'match-data':
@@ -223,9 +220,6 @@ export const DataOperationsCard: React.FC<DataOperationsCardProps> = ({
     if (dataTypeInfo.requiresEvent && !eventKey.trim()) {
       missing.push('Event Key');
     }
-    if (dataTypeInfo.requiresTBA && !apiKey.trim()) {
-      missing.push('TBA API Key');
-    }
     if (dataTypeInfo.requiresNexus && !nexusApiKey.trim()) {
       missing.push('Nexus API Key');
     }
@@ -262,7 +256,7 @@ export const DataOperationsCard: React.FC<DataOperationsCardProps> = ({
         {/* API Requirements Info */}
         <div className="text-xs text-muted-foreground space-y-1">
           {dataTypeInfo.requiresTBA && (
-            <p>• Requires TBA API Key</p>
+            <p>• TBA API Key is configured server-side</p>
           )}
           {dataTypeInfo.requiresNexus && (
             <p>• Requires Nexus API Key</p>

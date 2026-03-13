@@ -86,10 +86,11 @@ export const getMatchResult = (match: TBAMatch): {
 
 /**
  * Get teams for an event
+ * API key is now server-side, so the _apiKey parameter is kept for backwards compatibility but is unused
  */
-export const getEventTeams = async (eventKey: string, _apiKey: string): Promise<TBATeam[]> => {
+export const getEventTeams = async (eventKey: string, _apiKey?: string): Promise<TBATeam[]> => {
   const endpoint = `/event/${eventKey}/teams/keys`;
-  
+
   const response = await fetch(`/api/tba-proxy?endpoint=${encodeURIComponent(endpoint)}`);
 
   if (!response.ok) {

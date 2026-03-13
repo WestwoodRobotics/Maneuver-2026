@@ -158,7 +158,7 @@ const APIDataPage: React.FC = () => {
     }
 
     executeWithConfirmation(async () => {
-      await fetchMatchDataFromTBA(eventKey, false, () => { });
+      await fetchMatchDataFromTBA(eventKey, false);
 
       // Update current event in localStorage after successful load
       setCurrentEvent(eventKey.trim());
@@ -172,7 +172,7 @@ const APIDataPage: React.FC = () => {
       return;
     }
 
-    await loadMatchResults(eventKey, false, () => { });
+    await loadMatchResults(eventKey, false);
   };
 
   // const handleLoadValidationData = async () => {
@@ -195,17 +195,12 @@ const APIDataPage: React.FC = () => {
   // };
 
   const handleLoadEventTeams = async () => {
-    if (!apiKey.trim()) {
-      toast.error('Please enter your TBA API key');
-      return;
-    }
-
     if (!eventKey.trim()) {
       toast.error('Please enter an event key');
       return;
     }
 
-    await loadEventTeams(apiKey, eventKey, false, () => { });
+    await loadEventTeams(eventKey, false);
   };
 
   const handleLoadPitData = async () => {
@@ -367,7 +362,6 @@ const APIDataPage: React.FC = () => {
       <DataOperationsCard
         dataType={dataType}
         eventKey={eventKey}
-        apiKey={apiKey}
         nexusApiKey={nexusApiKey}
         matchDataLoading={matchDataLoading}
         matchResultsLoading={matchResultsLoading}

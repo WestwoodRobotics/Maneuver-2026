@@ -118,20 +118,18 @@ export function formatMatchName(match: TBAMatchData): string {
 // TBA API Functions
 // ============================================================================
 
-const CF_BASE_URL = 'https://scout.westwoodrobots.org/api';
-
 /**
  * Fetch detailed match data for a specific match from TBA
- * 
+ * Uses the Cloudflare Functions proxy to keep API keys server-side
+ *
  * @param matchKey - TBA match key (e.g., '2025mrcmp_qm1')
- * @param apiKey - TBA API key
  * @returns Detailed match data with score breakdown
  */
 export async function fetchTBAMatchDetail(
   matchKey: string,
 ): Promise<TBAMatchData> {
   const endpoint = `/match/${matchKey}`;
-  const url = `${CF_BASE_URL}/tba-proxy?endpoint=${encodeURIComponent(endpoint)}`
+  const url = `/api/tba-proxy?endpoint=${encodeURIComponent(endpoint)}`;
 
   const response = await fetch(url);
 
@@ -151,16 +149,16 @@ export async function fetchTBAMatchDetail(
 
 /**
  * Fetch all matches for an event (simple format, no score breakdowns)
- * 
+ * Uses the Cloudflare Functions proxy to keep API keys server-side
+ *
  * @param eventKey - TBA event key (e.g., '2025mrcmp')
- * @param apiKey - TBA API key
  * @returns Array of simplified match data
  */
 export async function fetchTBAEventMatches(
   eventKey: string,
 ): Promise<TBAMatchSimple[]> {
   const endpoint = `/event/${eventKey}/matches/simple`;
-  const url = `${CF_BASE_URL}/tba-proxy?endpoint=${encodeURIComponent(endpoint)}`
+  const url = `/api/tba-proxy?endpoint=${encodeURIComponent(endpoint)}`;
 
   const response = await fetch(url);
 
@@ -180,17 +178,17 @@ export async function fetchTBAEventMatches(
 
 /**
  * Fetch all detailed matches for an event (with score breakdowns)
+ * Uses the Cloudflare Functions proxy to keep API keys server-side
  * Note: This makes one API call and gets all data at once
- * 
+ *
  * @param eventKey - TBA event key (e.g., '2025mrcmp')
- * @param apiKey - TBA API key
  * @returns Array of detailed match data
  */
 export async function fetchTBAEventMatchesDetailed(
   eventKey: string,
 ): Promise<TBAMatchData[]> {
   const endpoint = `/event/${eventKey}/matches`;
-  const url = `${CF_BASE_URL}/tba-proxy?endpoint=${encodeURIComponent(endpoint)}`
+  const url = `/api/tba-proxy?endpoint=${encodeURIComponent(endpoint)}`;
 
   const response = await fetch(url);
 

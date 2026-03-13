@@ -24,7 +24,7 @@ export const useTBAData = () => {
   const [teams, setTeams] = useState<TBATeam[]>([]);
   const [isStored, setIsStored] = useState(false);
 
-  const fetchMatchDataFromTBA = async (tbaEventKey: string, _rememberForSession: boolean ) => {
+  const fetchMatchDataFromTBA = async (tbaEventKey: string, _rememberForSession: boolean = false) => {
     if (!tbaEventKey.trim()) {
       toast.error("Please enter an event key");
       return;
@@ -101,7 +101,7 @@ export const useTBAData = () => {
     }
   };
 
-  const loadMatchResults = async (_tbaApiKey: string, tbaEventKey: string, _rememberForSession: boolean, _setApiKey: (key: string) => void) => {
+  const loadMatchResults = async (tbaEventKey: string, _rememberForSession: boolean = false) => {
     if (!tbaEventKey.trim()) {
       toast.error('Please enter an event key');
       return;
@@ -149,14 +149,9 @@ export const useTBAData = () => {
     }
   };
 
-  const loadEventTeams = async (tbaApiKey: string, tbaEventKey: string, _rememberForSession: boolean, _setApiKey: (key: string) => void) => {
+  const loadEventTeams = async (tbaEventKey: string, _rememberForSession: boolean = false) => {
     if (!tbaEventKey.trim()) {
       toast.error('Please enter an event key');
-      return;
-    }
-
-    if (!tbaApiKey.trim()) {
-      toast.error('Please enter your TBA API key');
       return;
     }
 
@@ -180,7 +175,7 @@ export const useTBAData = () => {
       }
 
       // If not stored, fetch from API
-      const fetchedTeams = await getEventTeams(tbaEventKey, tbaApiKey);
+      const fetchedTeams = await getEventTeams(tbaEventKey);
       setTeams(fetchedTeams);
 
       // Automatically store teams to localStorage for persistence
