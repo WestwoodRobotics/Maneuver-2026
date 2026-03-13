@@ -4,13 +4,9 @@
  */
 import { env } from "cloudflare:workers"
 
-export const onRequest = async (
+export const onRequestGet = async (
   request: Request,
 ): Promise<Response> => {
-  // Only allow GET requests
-  if (request.method !== 'GET') {
-    return new Response('Method not allowed', { status: 405 });
-  }
 
   // Get the endpoint from query parameters
   const url = new URL(request.url);
