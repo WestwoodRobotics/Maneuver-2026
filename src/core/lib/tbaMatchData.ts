@@ -26,7 +26,7 @@ export interface TBAMatchData {
   comp_level: string;  // Competition level: "qm", "sf", "f"
   match_number: number;  // Match number within comp level
   set_number: number;  // Set number (for playoffs)
-  
+
   // Alliance data (always present)
   alliances: {
     red: {
@@ -42,19 +42,19 @@ export interface TBAMatchData {
       surrogate_team_keys: string[];
     };
   };
-  
+
   // Score breakdown (game-specific, may be null if not available)
   score_breakdown: Record<string, unknown> | null;
-  
+
   // Match result
   winning_alliance: "red" | "blue" | "";
-  
+
   // Timing
   time: number;  // Scheduled time (Unix timestamp)
   actual_time: number;  // Actual start time
   predicted_time: number;  // Predicted time
   post_result_time: number;  // Time results were posted
-  
+
   // Optional fields
   videos?: Array<{ key: string; type: string }>;
 }
@@ -104,9 +104,9 @@ export function formatMatchName(match: TBAMatchData): string {
     'sf': 'Semifinal',
     'f': 'Final'
   };
-  
+
   const level = levelNames[match.comp_level] || match.comp_level;
-  
+
   if (match.comp_level === 'qm') {
     return `${level} ${match.match_number}`;
   } else {
@@ -118,7 +118,7 @@ export function formatMatchName(match: TBAMatchData): string {
 // TBA API Functions
 // ============================================================================
 
-const TBA_BASE_URL = 'https://www.thebluealliance.com/api/v3';
+const CF_BASE_URL = 'https://scout.westwoodrobots.org/api';
 
 /**
  * Fetch detailed match data for a specific match from TBA
@@ -129,12 +129,12 @@ const TBA_BASE_URL = 'https://www.thebluealliance.com/api/v3';
  */
 export async function fetchTBAMatchDetail(
   matchKey: string,
-  _apiKey: string
 ): Promise<TBAMatchData> {
   const endpoint = `/match/${matchKey}`;
-  
-  const response = await fetch(`/api/tba-proxy?endpoint=${encodeURIComponent(endpoint)}`);
-  
+  const url = `${CF_BASE_URL}/tba-proxy?endpoint=${encodeURIComponent(endpoint)}`
+
+  const response = await fetch(url);
+
   if (!response.ok) {
     if (response.status === 401) {
       throw new Error('Invalid TBA API key');
@@ -144,7 +144,7 @@ export async function fetchTBAMatchDetail(
       throw new Error(`TBA API request failed: ${response.status}`);
     }
   }
-  
+
   const data = await response.json();
   return data as TBAMatchData;
 }
@@ -158,16 +158,12 @@ export async function fetchTBAMatchDetail(
  */
 export async function fetchTBAEventMatches(
   eventKey: string,
-  apiKey: string
 ): Promise<TBAMatchSimple[]> {
-  const url = `${TBA_BASE_URL}/event/${eventKey}/matches/simple`;
-  
-  const response = await fetch(url, {
-    headers: {
-      'X-TBA-Auth-Key': apiKey,
-    },
-  });
-  
+  const endpoint = `/event/${eventKey}/matches/simple`;
+  const url = `${CF_BASE_URL}/tba-proxy?endpoint=${encodeURIComponent(endpoint)}`
+
+  const response = await fetch(url);
+
   if (!response.ok) {
     if (response.status === 401) {
       throw new Error('Invalid TBA API key');
@@ -177,7 +173,7 @@ export async function fetchTBAEventMatches(
       throw new Error(`TBA API request failed: ${response.status}`);
     }
   }
-  
+
   const data = await response.json();
   return data as TBAMatchSimple[];
 }
@@ -192,16 +188,12 @@ export async function fetchTBAEventMatches(
  */
 export async function fetchTBAEventMatchesDetailed(
   eventKey: string,
-  apiKey: string
 ): Promise<TBAMatchData[]> {
-  const url = `${TBA_BASE_URL}/event/${eventKey}/matches`;
-  
-  const response = await fetch(url, {
-    headers: {
-      'X-TBA-Auth-Key': apiKey,
-    },
-  });
-  
+  const endpoint = `/event/${eventKey}/matches`;
+  const url = `${CF_BASE_URL}/tba-proxy?endpoint=${encodeURIComponent(endpoint)}`
+
+  const response = await fetch(url);
+
   if (!response.ok) {
     if (response.status === 401) {
       throw new Error('Invalid TBA API key');
@@ -211,7 +203,7 @@ export async function fetchTBAEventMatchesDetailed(
       throw new Error(`TBA API request failed: ${response.status}`);
     }
   }
-  
+
   const data = await response.json();
   return data as TBAMatchData[];
 }

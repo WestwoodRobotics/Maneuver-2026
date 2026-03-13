@@ -24,7 +24,7 @@ export const useTBAData = () => {
   const [teams, setTeams] = useState<TBATeam[]>([]);
   const [isStored, setIsStored] = useState(false);
 
-  const fetchMatchDataFromTBA = async (_tbaApiKey: string, tbaEventKey: string, _rememberForSession: boolean, _setApiKey: (key: string) => void) => {
+  const fetchMatchDataFromTBA = async (tbaEventKey: string, _rememberForSession: boolean ) => {
     if (!tbaEventKey.trim()) {
       toast.error("Please enter an event key");
       return;

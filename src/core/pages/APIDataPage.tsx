@@ -35,7 +35,7 @@ interface ProcessingResult {
 
 const APIDataPage: React.FC = () => {
   // Get API keys from environment variables
-  const apiKey = import.meta.env.VITE_TBA_API_KEY || '';
+  // const apiKey = import.meta.env.VITE_TBA_API_KEY || '';
   const nexusApiKey = import.meta.env.VITE_NEXUS_API_KEY || '';
 
   // Shared state for configuration
@@ -151,10 +151,6 @@ const APIDataPage: React.FC = () => {
   };
 
   const handleLoadMatchData = async () => {
-    if (!apiKey.trim()) {
-      toast.error('Please enter your TBA API key');
-      return;
-    }
 
     if (!eventKey.trim()) {
       toast.error('Please enter an event key');
@@ -162,7 +158,7 @@ const APIDataPage: React.FC = () => {
     }
 
     executeWithConfirmation(async () => {
-      await fetchMatchDataFromTBA(apiKey, eventKey, false, () => { });
+      await fetchMatchDataFromTBA(eventKey, false, () => { });
 
       // Update current event in localStorage after successful load
       setCurrentEvent(eventKey.trim());
@@ -170,17 +166,13 @@ const APIDataPage: React.FC = () => {
   };
 
   const handleLoadMatchResults = async () => {
-    if (!apiKey.trim()) {
-      toast.error('Please enter your TBA API key');
-      return;
-    }
 
     if (!eventKey.trim()) {
       toast.error('Please enter an event key');
       return;
     }
 
-    await loadMatchResults(apiKey, eventKey, false, () => { });
+    await loadMatchResults(eventKey, false, () => { });
   };
 
   // const handleLoadValidationData = async () => {

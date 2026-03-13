@@ -38,8 +38,8 @@ export interface UseTBAMatchDataReturn {
   cacheExpired: boolean;
   
   // Functions
-  fetchMatch: (matchKey: string, apiKey: string, forceRefresh?: boolean) => Promise<TBAMatchData | null>;
-  fetchEventMatches: (eventKey: string, apiKey: string, forceRefresh?: boolean) => Promise<TBAMatchData[]>;
+  fetchMatch: (matchKey: string, forceRefresh?: boolean) => Promise<TBAMatchData | null>;
+  fetchEventMatches: (eventKey: string, forceRefresh?: boolean) => Promise<TBAMatchData[]>;
   getMatch: (matchKey: string) => Promise<TBAMatchData | null>;
   clearCache: (eventKey: string) => Promise<void>;
   refreshCacheStats: () => Promise<void>;
@@ -53,7 +53,7 @@ export interface UseTBAMatchDataReturn {
  * const { fetchEventMatches, matches, loading } = useTBAMatchData();
  * 
  * useEffect(() => {
- *   fetchEventMatches('2025mrcmp', apiKey);
+ *   fetchEventMatches('2025mrcmp');
  * }, []);
  * ```
  */
@@ -84,7 +84,6 @@ export function useTBAMatchData(): UseTBAMatchDataReturn {
    */
   const fetchMatch = useCallback(async (
     matchKey: string,
-    apiKey: string,
     forceRefresh: boolean = false
   ): Promise<TBAMatchData | null> => {
     setLoading(true);
@@ -102,7 +101,7 @@ export function useTBAMatchData(): UseTBAMatchDataReturn {
 
       // Fetch from TBA
       console.log(`Fetching match ${matchKey} from TBA`);
-      const matchData = await fetchTBAMatchDetail(matchKey, apiKey);
+      const matchData = await fetchTBAMatchDetail(matchKey);
 
       // Cache the result
       await cacheTBAMatch(matchData);
@@ -123,7 +122,6 @@ export function useTBAMatchData(): UseTBAMatchDataReturn {
    */
   const fetchEventMatches = useCallback(async (
     eventKey: string,
-    apiKey: string,
     forceRefresh: boolean = false
   ): Promise<TBAMatchData[]> => {
     setLoading(true);
@@ -171,7 +169,7 @@ export function useTBAMatchData(): UseTBAMatchDataReturn {
       // If we're online, try to fetch fresh data
       if (navigator.onLine) {
         console.log(`Fetching event ${eventKey} from TBA`);
-        const matchesData = await fetchTBAEventMatchesDetailed(eventKey, apiKey);
+        const matchesData = await fetchTBAEventMatchesDetailed(eventKey);
 
         // Filter for matches with score breakdowns only
         const matchesWithBreakdowns = matchesData.filter(hasScoreBreakdown);
