@@ -2,11 +2,18 @@
  * Cloudflare Pages Function - TBA API Proxy
  * Proxies requests to The Blue Alliance API without exposing API keys client-side
  */
-import { env } from "cloudflare:workers"
+
+interface Env {
+  TBA_API_KEY: string;
+}
 
 export const onRequestGet = async (
-  request: Request,
+  context: { request: Request; env: Env },
 ): Promise<Response> => {
+  const { request, env } = context;
+
+  // Get API key from environment
+  const apiKey = env.TBA_API_KEY;
 
   // Get the endpoint from query parameters
   const url = new URL(request.url);
@@ -15,10 +22,6 @@ export const onRequestGet = async (
   if (!endpoint) {
     return new Response('Missing endpoint parameter', { status: 400 });
   }
-
-  // Get API key from environment
-  // @ts-ignore (heh)
-  const apiKey = env.TBA_API_KEY;
 
   if (!apiKey) {
     return new Response('TBA API key not configured', { status: 500 });
