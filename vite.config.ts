@@ -58,9 +58,7 @@ export default defineConfig({
   server: {
     host: true, // same as "--host" flag
     allowedHosts: [
-      '.ngrok-free.dev',
-      '.ngrok-free.app',
-      '.ngrok.io',
+      '5173.kibihost.com'
     ],
   },
   resolve: {
